@@ -50,32 +50,44 @@ import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
 contract Loanft {
 
 // use enum for set the asset type? ERC721, ERC115, ERC20
-  address public collateralAssetAddress;
-  address public assetToRequest;
-  address public assetAsInterest;
+  IERC721 public collateralAssetAddress;
+  IERC1155 public assetToRequest;
+  IERC1155 public assetAsInterest;
   uint256 public assetToRequestId;
   uint256 public timeToPay;
   uint256 public currentTimeFillOrder;
-  uint256 public constant LOAN_FEE = 1 ether;
+  uint256 public LOAN_FEE;
   
   //Mapping of collaterall to staker
   mapping(address => uint256) internal stakerToCollateralId;
   mapping(address => uint256) internal stakerToInterestId;
   address public borrowerAddress;
   address public lenderAddress;
-  address public COMMISSION_WALLET = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4; // example wallet
+  address public COMMISSION_WALLET; // example wallet
 
-  constructor(address _collateralAssetAddress, address _assetToRequest, address _assetAsInterest, uint256 _assetToRequestId, uint256 _timeToPay) {
-      require(_collateralAssetAddress != address(0), "Collaterall address can't be null");
-      require(_assetToRequest != address(0), "Asset address can't be null");
-      require(_assetAsInterest != address(0), "Interest address can't be null");
+  constructor(
+      address _borrowerAddress,
+      IERC721 _collateralAssetAddress,
+      IERC1155 _assetToRequest,
+      IERC1155 _assetAsInterest,
+      uint256 _assetToRequestId,
+      uint256 _timeToPay,
+      uint256 _loan_fee,
+      address _commission_Wallet
+      ) {
+      // require(_collateralAssetAddress != address(0), "Collaterall address can't be null");
+      // require(_assetToRequest != address(0), "Asset address can't be null");
+      // require(_assetAsInterest != address(0), "Interest address can't be null");
       require(_timeToPay > 0, "time can't be zero");
+      require(_loan_fee > 0, "loan fee can`t be zero");
       collateralAssetAddress = _collateralAssetAddress;
       assetToRequest = _assetToRequest;
       assetAsInterest = _assetAsInterest;
       assetToRequestId = _assetToRequestId;
       timeToPay = _timeToPay * 1 days;
-      borrowerAddress = msg.sender;
+      LOAN_FEE = _loan_fee;
+      COMMISSION_WALLET = _commission_Wallet;
+      borrowerAddress = _borrowerAddress;
   }
 
  // wee need to execute setApprovalForAll
