@@ -79,7 +79,7 @@ contract Loanft {
       // require(_assetToRequest != address(0), "Asset address can't be null");
       // require(_assetAsInterest != address(0), "Interest address can't be null");
       require(_timeToPay > 0, "time can't be zero");
-      require(_loan_fee > 0, "loan fee can`t be zero");
+      require(_loan_fee > 0, "loan fee can't be zero");
       collateralAssetAddress = _collateralAssetAddress;
       assetToRequest = _assetToRequest;
       assetAsInterest = _assetAsInterest;

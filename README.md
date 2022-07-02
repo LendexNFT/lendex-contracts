@@ -25,17 +25,17 @@
   NFT's de la  coleccion que se puso como colateral y de la coleccion que se ofrece como interes, la cuenta que llenara la orden debe contar con un NFT de la coleccion que se solicita y que corresponda al Id.
   Se debe ejecutar el ``setApprovalForAll`` de cada contrato de los NFT's para autorizar que el contrato de la orden (``Loanft.sol``)  pueda transferir los assets segun su funcion.
 
-## Tutorial basico para correr el proyecto en Hardhat de forma local.
+## Tutorial basico para correr el proyecto en Hardhat de forma local
 
   * Prerequisitos:
     Tener instalado [NodeJS](https://nodejs.org/) >=12.0
 
   1. Clonar este repositorio.
-  2. Entrar a la carpeta del proyectoo y ejecutar ``npm i` para instalar los paquetes necesarios.
+  2. Entrar a la carpeta del proyectoo y ejecutar ``npm i`` para instalar los paquetes necesarios.
   3. Una vez instalados los paquetes ejecutar el comando ``npx hardhat compile``.
   4. Para correr el testing ejecutar ``npx hardhat test``.
   ....
-  
+
 
 ```shell
 npx hardhat accounts
