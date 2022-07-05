@@ -6,11 +6,11 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 contract MyAsset is ERC721 {
     constructor() ERC721("MyAsset", "MAS") {}
 
-    function safeMint(uint256 tokenId) public {
-        _safeMint(msg.sender, tokenId);
+    function safeMint(uint256 amount) public {
+        _safeMint(msg.sender, amount);
     }
 
-    function setApprovalForAll(address operator) public {
+    function setApproval(address operator) public {
       setApprovalForAll(operator, true);
     }
 }

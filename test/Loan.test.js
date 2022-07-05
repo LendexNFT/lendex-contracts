@@ -9,10 +9,11 @@ describe("Loan Contract", function () {
   let owner;
   let borrower;
   let lender;
+  let hacker;
   let fee = ethers.utils.parseUnits("1", "ether");
 
   beforeEach(async () => {
-    [owner, borrower, lender] = await ethers.getSigners();
+    [owner, borrower, lender, hacker] = await ethers.getSigners();
 
     const Collateral = await ethers.getContractFactory("MyAsset");
     collateral = await Collateral.deploy();
@@ -100,14 +101,54 @@ describe("Loan Contract", function () {
       await loan.deployed();
 
       //execute setApprovalForAll
-      collateral.connect(borrower).setApprovalForAll(loan.address, true);
-      interest.connect(borrower).setApprovalForAll(loan.address, true);
-      requested.connect(lender).setApprovalForAll(loan.address, true);
+      collateral.connect(borrower).setApproval(loan.address);
+      interest.connect(borrower).setApproval(loan.address);
+      requested.connect(lender).setApproval(loan.address);
     });
+    describe('BorrowOrder', () => {
+      it("Should create new borrow order successfully", async function () {
+        await expect(loan.connect(borrower).borrowOrder(1, 2, { value: fee }))
+        .to.emit(loan, "BorrowOrderEvent").withArgs(await loan.borrowerAddress(), 1, 2);
+      });
 
-    it("Should create new borrow order successfully", async function () {
-      const receipt = await loan.connect(borrower).borrowOrder(1, 2);
-      console.log("-->> ", receipt);
+      it("Should Reverted if is not the borrowerAdmin try to deposit a collateral", async function () {
+        await expect(loan.connect(hacker).borrowOrder(1, 2, { value: fee}))
+        .to.be.revertedWith("Token must be staked by borrower!");
+      });
+
+      it("Should Reverted if the borrower has not interest asset balance", async function () {
+        await interest.connect(borrower).safeTransferFrom(borrower.address, hacker.address, 2, 2, 0x0)
+        
+        await expect(loan.connect(borrower).borrowOrder(1, 2, { value: fee}))
+        .to.be.revertedWith("You need to have at least one!");
+      });
+
+      it("Should Reverted if the borrower not pay the fee", async function () {
+        await expect(loan.connect(borrower).borrowOrder(1, 2, { value: 0 }))
+        .to.be.revertedWith("You have to pay the Loan fee");
+      });
+
+      it("Should Commission wallet increment balance", async function () {
+        commission_wallet = await loan.COMMISSION_WALLET();
+        const currentBalance = async () => await ethers.provider.getBalance(commission_wallet);
+        const currentBalanceFormatted = ethers.utils.formatUnits(await currentBalance());
+        
+        await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
+
+        const expectedBalance = ethers.utils.formatUnits(await currentBalance());
+        expect(Number(expectedBalance)).greaterThan(Number(currentBalanceFormatted));
+      });
+
+      it("Should get the collateral asset deposited on contract", async function () {
+        await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
+        
+        const collateralContractBalance = await collateral.balanceOf(loan.address);
+        const collateralStaked = await loan.getCollateralTokenStaked(borrower.address);
+        const ownerOfCollateral = await collateral.ownerOf(1);
+        
+        expect(loan.address).to.equal(ownerOfCollateral);
+        expect(collateralStaked).to.equal(collateralContractBalance);
+      });
     })
   });
 });

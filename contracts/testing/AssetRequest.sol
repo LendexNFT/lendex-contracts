@@ -14,7 +14,7 @@ contract RockToken is ERC1155 {
         _mint(account, id, amount, data);
     }
 
-    function setApprovalForAll(address operator) public {
+    function setApproval(address operator) public {
       setApprovalForAll(operator, true);
     }
 }

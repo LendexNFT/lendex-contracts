@@ -46,8 +46,10 @@ pragma solidity ^0.8.8;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
+import "hardhat/console.sol";
 
-contract Loanft {
+contract Loanft is ERC1155Holder {
 
 // use enum for set the asset type? ERC721, ERC115, ERC20
   IERC721 public collateralAssetAddress;
@@ -64,6 +66,10 @@ contract Loanft {
   address public borrowerAddress;
   address public lenderAddress;
   address public COMMISSION_WALLET; // example wallet
+
+  event BorrowOrderEvent(address indexed borrower, uint256 indexed collaterallId, uint256 indexed interestId);
+  event LendingOrderEvent(address indexed lender, uint256 indexed assetToLendId);
+  event OrderCompletedEvent();
 
   constructor(
       address _borrowerAddress,
@@ -93,22 +99,24 @@ contract Loanft {
  // wee need to execute setApprovalForAll
     function borrowOrder(uint256 collateralId, uint256 interestId) payable public {
       require(
-        IERC721(collateralAssetAddress).ownerOf(collateralId) == borrowerAddress,
-            "Token must be stakable by you!"
+        IERC721(collateralAssetAddress).ownerOf(collateralId) == msg.sender,
+            "Token must be staked by borrower!"
         );
         require(
-          IERC1155(assetAsInterest).balanceOf(borrowerAddress, interestId) >= 1,
+          IERC1155(assetAsInterest).balanceOf(msg.sender, interestId) >= 1,
             "You need to have at least one!"
         );
         require(msg.value >= LOAN_FEE, "You have to pay the Loan fee");
 
         payable(COMMISSION_WALLET).transfer(msg.value);
         
-        IERC721(collateralAssetAddress).safeTransferFrom(borrowerAddress, address(this), collateralId);
-        stakerToCollateralId[borrowerAddress] = collateralId;
+        IERC721(collateralAssetAddress).transferFrom(msg.sender, address(this), collateralId);
+        stakerToCollateralId[msg.sender] = collateralId;
 
-        IERC1155(assetAsInterest).safeTransferFrom(borrowerAddress, address(this), interestId, 1, "0x0");
-        stakerToInterestId[borrowerAddress] = interestId;
+        IERC1155(assetAsInterest).safeTransferFrom(msg.sender, address(this), interestId, 1, "0x0");
+        stakerToInterestId[msg.sender] = interestId;
+
+        emit BorrowOrderEvent(msg.sender, collateralId, interestId);
     }
 
     function lendOrder() payable public {
@@ -140,8 +148,8 @@ contract Loanft {
     }
 
     function borrowerPayInTime() internal {
-        uint256 tokenInterestId = getInterestTokenStaked();
-        uint256 tokenCollateralId = getCollateralTokenStaked();
+        uint256 tokenInterestId = 2; // getInterestTokenStaked();
+        uint256 tokenCollateralId = 1; // getCollateralTokenStaked();
 
         // pays the interest for the loan
         IERC1155(assetAsInterest).safeTransferFrom(address(this), lenderAddress, tokenInterestId, 1, "0x0");
@@ -152,8 +160,8 @@ contract Loanft {
     }
 
     function borrowerNotPayInTime() internal {
-        uint256 tokenInterestId = getInterestTokenStaked();
-        uint256 tokenCollateralId = getCollateralTokenStaked();
+        uint256 tokenInterestId = 2; // getInterestTokenStaked();
+        uint256 tokenCollateralId = 1; // getCollateralTokenStaked();
 
         // return the asset interest for the loan
         IERC1155(assetAsInterest).safeTransferFrom(address(this), borrowerAddress, tokenInterestId, 1, "0x0");
@@ -166,12 +174,12 @@ contract Loanft {
         IERC1155(assetToRequest).safeTransferFrom(msg.sender, address(this), assetToRequestId, 1, "0x0");
     }
 
-    function getInterestTokenStaked() public view returns (uint256) {
-        return stakerToInterestId[borrowerAddress];
+    function getInterestTokenStaked(address borrower) public view returns (uint256) {
+        return stakerToInterestId[borrower];
     }
 
-    function getCollateralTokenStaked() public view returns (uint256) {
-        return stakerToCollateralId[borrowerAddress];
+    function getCollateralTokenStaked(address borrower) public view returns (uint256) {
+        return stakerToCollateralId[borrower];
     }
 
 }
