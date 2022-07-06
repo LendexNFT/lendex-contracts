@@ -68,7 +68,7 @@ contract Loanft is ERC1155Holder {
   address public COMMISSION_WALLET; // example wallet
 
   event BorrowOrderEvent(address indexed borrower, uint256 indexed collaterallId, uint256 indexed interestId);
-  event LendingOrderEvent(address indexed lender, uint256 indexed assetToLendId);
+  event LendingOrderEvent(address indexed lender, uint256 indexed assetToLendId, IERC1155 indexed assetAddress);
   event OrderCompletedEvent();
 
   constructor(
@@ -121,7 +121,7 @@ contract Loanft is ERC1155Holder {
 
     function lendOrder() payable public {
         require(
-          IERC1155(assetToRequest).balanceOf(lenderAddress, assetToRequestId) >= 1,
+          IERC1155(assetToRequest).balanceOf(msg.sender, assetToRequestId) >= 1,
             "You need to have at least one!"
         );
         require(msg.value >= LOAN_FEE, "You have to pay the Loan fee");
@@ -131,7 +131,8 @@ contract Loanft is ERC1155Holder {
         payable(COMMISSION_WALLET).transfer(msg.value);
         currentTimeFillOrder = block.timestamp + timeToPay + 10 minutes;
 
-        IERC1155(assetToRequest).safeTransferFrom(lenderAddress, borrowerAddress, assetToRequestId, 1, "0x0");
+        IERC1155(assetToRequest).safeTransferFrom(msg.sender, borrowerAddress, assetToRequestId, 1, "0x0");
+        emit LendingOrderEvent(msg.sender, assetToRequestId, assetToRequest);
     }
 
     function orderComplete() public {

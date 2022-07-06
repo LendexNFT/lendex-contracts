@@ -105,7 +105,9 @@ describe("Loan Contract", function () {
       interest.connect(borrower).setApproval(loan.address);
       requested.connect(lender).setApproval(loan.address);
     });
+
     describe('BorrowOrder', () => {
+
       it("Should create new borrow order successfully", async function () {
         await expect(loan.connect(borrower).borrowOrder(1, 2, { value: fee }))
         .to.emit(loan, "BorrowOrderEvent").withArgs(await loan.borrowerAddress(), 1, 2);
@@ -143,11 +145,65 @@ describe("Loan Contract", function () {
         await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
         
         const collateralContractBalance = await collateral.balanceOf(loan.address);
-        const collateralStaked = await loan.getCollateralTokenStaked(borrower.address);
         const ownerOfCollateral = await collateral.ownerOf(1);
         
         expect(loan.address).to.equal(ownerOfCollateral);
-        expect(collateralStaked).to.equal(collateralContractBalance);
+        expect(Number(collateralContractBalance)).greaterThanOrEqual(1);
+      });
+
+      it("Should get the interest asset deposited on contract", async function () {
+        await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
+        const interestContractBalance = await interest.balanceOf(loan.address, 2);
+        
+        expect(Number(interestContractBalance)).greaterThanOrEqual(1);
+      });
+    });
+
+    describe('LendOrder', () => {
+
+      it("Should create new lend order successfully", async function () {
+        await expect(loan.connect(lender).lendOrder({ value: fee }))
+        .to.emit(loan, "LendingOrderEvent").withArgs(lender.address, await loan.assetToRequestId(), requested.address);
+      });
+
+      it("Should Reverted if not have requested asset balance", async function () {
+        await requested.connect(lender).safeTransferFrom(lender.address, hacker.address, 1, 3, 0x0)
+    
+        await expect(loan.connect(lender).lendOrder({ value: fee}))
+        .to.be.revertedWith("You need to have at least one!");
+      });
+
+      it("Should Reverted if the lender not pay the fee", async function () {
+        await expect(loan.connect(lender).lendOrder({ value: 0 }))
+        .to.be.revertedWith("You have to pay the Loan fee");
+      });
+
+      it("Should Reverted if the lender is the borrower too", async function () {
+        await requested.connect(lender).safeTransferFrom(lender.address, borrower.address, 1, 3, 0x0)
+    
+        await expect(loan.connect(borrower).lendOrder({ value: fee }))
+        .to.be.revertedWith("You cannot be the lender if you are the borrower");
+      });
+
+      it("Should Commission wallet increment balance", async function () {
+        commission_wallet = await loan.COMMISSION_WALLET();
+        const currentBalance = async () => await ethers.provider.getBalance(commission_wallet);
+        const currentBalanceFormatted = ethers.utils.formatUnits(await currentBalance());
+        
+        await loan.connect(lender).lendOrder({ value: fee })
+
+        const expectedBalance = ethers.utils.formatUnits(await currentBalance());
+        expect(Number(expectedBalance)).greaterThan(Number(currentBalanceFormatted));
+      });
+
+      it("Should lendOrder send the asset to the borrower", async function () {
+        const getBalance = async () => await requested.balanceOf(borrower.address, await loan.assetToRequestId());
+        const borrowBalance = await getBalance();
+        
+        await loan.connect(lender).lendOrder({ value: fee });
+        const expectedBalance = await getBalance();
+      
+        expect(Number(expectedBalance)).greaterThan(Number(borrowBalance));
       });
     })
   });
