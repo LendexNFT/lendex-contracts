@@ -205,6 +205,53 @@ describe("Loan Contract", function () {
       
         expect(Number(expectedBalance)).greaterThan(Number(borrowBalance));
       });
+
+      it("Should get the pay time for the order", async function () {
+        await loan.connect(lender).lendOrder({ value: fee });
+        const orderTime = await loan.currentTimeFillOrder();
+       
+        expect(new Date(Number(orderTime))).greaterThan(new Date(1657142047));
+      });
+    });
+
+    describe("OrderComplete", () => {
+      beforeEach(async () => {
+        await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
+        await loan.connect(lender).lendOrder({ value: fee })
+        requested.connect(borrower).setApproval(loan.address);
+      });
+
+      it("Should complete order successfully", async function () {
+        await expect(loan.connect(borrower).orderComplete())
+        .to.emit(loan, "OrderCompletedEvent");
+      });
+
+      it("Should reverted transaction if is not the borrower", async function () {
+        await expect(loan.connect(hacker).orderComplete())
+        .to.be.revertedWith("You cannot complete the order");
+      });
+
+      it("Should reverted transaction if the borrower has not asset to requested", async function () {
+        await requested.connect(borrower).safeTransferFrom(borrower.address, hacker.address, 1, 1, 0x0)
+    
+        await expect(loan.connect(borrower).orderComplete())
+        .to.be.revertedWith("You need to have at least one!");
+      });
+
+      it("Should call pay in time if the current time is not greater than time to pay", async function () {
+        await expect(loan.connect(borrower).orderComplete())
+        .to.emit(loan, "PayInTimeEvent").withArgs(borrower.address, requested.address, collateral.address);
+      });
+
+      it("Should call not pay in time if the current time is greater than time to pay", async function () {
+        const sevenDays = 7 * 24 * 60 * 60;
+        await network.provider.send("evm_increaseTime", [sevenDays])
+        await ethers.provider.send("evm_mine");
+
+        await expect(loan.connect(borrower).orderComplete())
+        .to.emit(loan, "PayLateEvent").withArgs(requested.address, interest.address, collateral.address);
+      });
+      
     })
   });
 });
