@@ -34,6 +34,8 @@
   2. Entrar a la carpeta del proyectoo y ejecutar ``npm i`` para instalar los paquetes necesarios.
   3. Una vez instalados los paquetes ejecutar el comando ``npx hardhat compile``.
   4. Para correr el testing ejecutar ``npx hardhat test``.
+
+  5. Para correr el coverage ejecutar ``npx hardhat coverage``.
   ....
 
 
