@@ -46,8 +46,9 @@ pragma solidity ^0.8.8;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC1155/ERC1155.sol";
+import "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 
-contract Loanft {
+contract Loanft is ERC1155Holder {
 
 // use enum for set the asset type? ERC721, ERC115, ERC20
   IERC721 public collateralAssetAddress;
@@ -65,6 +66,12 @@ contract Loanft {
   address public lenderAddress;
   address public COMMISSION_WALLET; // example wallet
 
+  event BorrowOrderEvent(address indexed borrower, uint256 indexed collaterallId, uint256 indexed interestId);
+  event LendingOrderEvent(address indexed lender, uint256 indexed assetToLendId, IERC1155 indexed assetAddress);
+  event OrderCompletedEvent(address indexed borrower, uint256 indexed time);
+  event PayInTimeEvent(address indexed borrower, IERC1155 indexed assetRequest, IERC721 indexed collateral);
+  event PayLateEvent(IERC1155 indexed assetRequest, IERC1155 indexed interestAsset, IERC721 indexed collateral);
+
   constructor(
       address _borrowerAddress,
       IERC721 _collateralAssetAddress,
@@ -79,7 +86,7 @@ contract Loanft {
       // require(_assetToRequest != address(0), "Asset address can't be null");
       // require(_assetAsInterest != address(0), "Interest address can't be null");
       require(_timeToPay > 0, "time can't be zero");
-      require(_loan_fee > 0, "loan fee can`t be zero");
+      require(_loan_fee > 0, "loan fee can't be zero");
       collateralAssetAddress = _collateralAssetAddress;
       assetToRequest = _assetToRequest;
       assetAsInterest = _assetAsInterest;
@@ -93,27 +100,29 @@ contract Loanft {
  // wee need to execute setApprovalForAll
     function borrowOrder(uint256 collateralId, uint256 interestId) payable public {
       require(
-        IERC721(collateralAssetAddress).ownerOf(collateralId) == borrowerAddress,
-            "Token must be stakable by you!"
+        IERC721(collateralAssetAddress).ownerOf(collateralId) == msg.sender,
+            "Token must be staked by borrower!"
         );
         require(
-          IERC1155(assetAsInterest).balanceOf(borrowerAddress, interestId) >= 1,
+          IERC1155(assetAsInterest).balanceOf(msg.sender, interestId) >= 1,
             "You need to have at least one!"
         );
         require(msg.value >= LOAN_FEE, "You have to pay the Loan fee");
 
         payable(COMMISSION_WALLET).transfer(msg.value);
         
-        IERC721(collateralAssetAddress).safeTransferFrom(borrowerAddress, address(this), collateralId);
-        stakerToCollateralId[borrowerAddress] = collateralId;
+        IERC721(collateralAssetAddress).transferFrom(msg.sender, address(this), collateralId);
+        stakerToCollateralId[msg.sender] = collateralId;
 
-        IERC1155(assetAsInterest).safeTransferFrom(borrowerAddress, address(this), interestId, 1, "0x0");
-        stakerToInterestId[borrowerAddress] = interestId;
+        IERC1155(assetAsInterest).safeTransferFrom(msg.sender, address(this), interestId, 1, "0x0");
+        stakerToInterestId[msg.sender] = interestId;
+
+        emit BorrowOrderEvent(msg.sender, collateralId, interestId);
     }
 
     function lendOrder() payable public {
         require(
-          IERC1155(assetToRequest).balanceOf(lenderAddress, assetToRequestId) >= 1,
+          IERC1155(assetToRequest).balanceOf(msg.sender, assetToRequestId) >= 1,
             "You need to have at least one!"
         );
         require(msg.value >= LOAN_FEE, "You have to pay the Loan fee");
@@ -121,57 +130,67 @@ contract Loanft {
         lenderAddress = msg.sender;
 
         payable(COMMISSION_WALLET).transfer(msg.value);
-        currentTimeFillOrder = block.timestamp + timeToPay + 10 minutes;
+        currentTimeFillOrder = block.timestamp + (timeToPay + 10 minutes);
 
-        IERC1155(assetToRequest).safeTransferFrom(lenderAddress, borrowerAddress, assetToRequestId, 1, "0x0");
+        IERC1155(assetToRequest).safeTransferFrom(msg.sender, borrowerAddress, assetToRequestId, 1, "0x0");
+        emit LendingOrderEvent(msg.sender, assetToRequestId, assetToRequest);
     }
 
     function orderComplete() public {
-        require(block.timestamp > currentTimeFillOrder, "You cannot complete the order yet");
-        uint256 assetBalance = getAssetToRequestBalance();
-        if(assetBalance > 0)
-            borrowerPayInTime();
-        else
-            borrowerNotPayInTime();
+        require(msg.sender == borrowerAddress, "You cannot complete the order");
+        require(
+          IERC1155(assetToRequest).balanceOf(msg.sender, assetToRequestId) >= 1,
+          "You need to have at least one!"
+        );
+        
+        if(block.timestamp <= currentTimeFillOrder) {
+            payAssetToRequested();
+            borrowerPayInTime(msg.sender);
+        } else {
+            borrowerNotPayInTime(msg.sender);
+        }
+        emit OrderCompletedEvent(msg.sender, block.timestamp);
     }
 
-    function getAssetToRequestBalance() internal view returns(uint256) {
-        return IERC1155(assetToRequest).balanceOf(address(this), assetToRequestId);
-    }
-
-    function borrowerPayInTime() internal {
-        uint256 tokenInterestId = getInterestTokenStaked();
-        uint256 tokenCollateralId = getCollateralTokenStaked();
+    function borrowerPayInTime(address _borrower) internal {
+        require(getAssetToRequestBalance() > 0, "You need to deposit the asset owed");
+        uint256 tokenInterestId = getInterestTokenStaked(_borrower);
+        uint256 tokenCollateralId = getCollateralTokenStaked(_borrower);
 
         // pays the interest for the loan
         IERC1155(assetAsInterest).safeTransferFrom(address(this), lenderAddress, tokenInterestId, 1, "0x0");
         // return the asset that lender lend
         IERC1155(assetToRequest).safeTransferFrom(address(this), lenderAddress, assetToRequestId, 1, "0x0");
         // return the collateral of the borrower
-        IERC721(collateralAssetAddress).safeTransferFrom(address(this), borrowerAddress, tokenCollateralId);
+        IERC721(collateralAssetAddress).safeTransferFrom(address(this), _borrower, tokenCollateralId);
+        emit PayInTimeEvent(_borrower, assetToRequest, collateralAssetAddress);
     }
 
-    function borrowerNotPayInTime() internal {
-        uint256 tokenInterestId = getInterestTokenStaked();
-        uint256 tokenCollateralId = getCollateralTokenStaked();
+    function borrowerNotPayInTime(address _borrower) internal {
+        uint256 tokenInterestId = getInterestTokenStaked(_borrower);
+        uint256 tokenCollateralId = getCollateralTokenStaked(_borrower);
 
         // return the asset interest for the loan
         IERC1155(assetAsInterest).safeTransferFrom(address(this), borrowerAddress, tokenInterestId, 1, "0x0");
         // send the collateral to the lender
         IERC721(collateralAssetAddress).safeTransferFrom(address(this), lenderAddress, tokenCollateralId);
+        emit PayLateEvent(assetToRequest, assetAsInterest, collateralAssetAddress);
     }
 
-    function payAssetToRequested() public {
-        require(block.timestamp > currentTimeFillOrder, "To late for pay the order");
+    function payAssetToRequested() internal {
         IERC1155(assetToRequest).safeTransferFrom(msg.sender, address(this), assetToRequestId, 1, "0x0");
     }
 
-    function getInterestTokenStaked() public view returns (uint256) {
-        return stakerToInterestId[borrowerAddress];
+    function getAssetToRequestBalance() internal view returns(uint256) {
+        return IERC1155(assetToRequest).balanceOf(address(this), assetToRequestId);
     }
 
-    function getCollateralTokenStaked() public view returns (uint256) {
-        return stakerToCollateralId[borrowerAddress];
+    function getInterestTokenStaked(address borrower) public view returns (uint256) {
+        return stakerToInterestId[borrower];
+    }
+
+    function getCollateralTokenStaked(address borrower) public view returns (uint256) {
+        return stakerToCollateralId[borrower];
     }
 
 }

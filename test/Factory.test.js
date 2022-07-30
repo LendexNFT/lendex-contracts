@@ -100,8 +100,8 @@ describe("Factory Contract", function () {
         2
       )
       expect(receipt).to.have.a.property('hash');
-    })
-  })
+    });
+  });
 });
 
 

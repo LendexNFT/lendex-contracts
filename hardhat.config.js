@@ -1,4 +1,6 @@
 require("@nomiclabs/hardhat-waffle");
+require("solidity-coverage");
+require("hardhat-gas-reporter");
 
 // This is a sample Hardhat task. To learn how to create your own go to
 // https://hardhat.org/guides/create-task.html
@@ -17,5 +19,22 @@ task("accounts", "Prints the list of accounts", async (taskArgs, hre) => {
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
-  solidity: "0.8.8",
+  solidity: {
+    version: "0.8.8",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 1000,
+      },
+    },
+  },
+  gasReporter: {
+    currency: "USD",
+    gasPriceApi: `https://api.polygonscan.com/api
+    ?module=proxy
+    &action=eth_gasPrice
+    &apikey=${process.env.GAS_PRICE}`,
+    token: 'MATIC',
+    coinmarketcap: process.env.API_KEY
+  }
 };
