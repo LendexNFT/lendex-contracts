@@ -252,6 +252,29 @@ describe("Loan Contract", function () {
         .to.emit(loan, "PayLateEvent").withArgs(requested.address, interest.address, collateral.address);
       });
       
+    });
+
+    describe('Cancel Loan', () => {
+      beforeEach(async () => {
+        await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
+      });
+
+      it("Should Cancel Loan Correctly", async function () {
+        await expect(loan.connect(borrower).cancelOrder())
+        .to.emit(loan, "CancelLoan").withArgs(loan.address, borrower.address);
+      });
+
+      it("Should fail Cancel Loan if lendOrder was executed", async function () {
+        await loan.connect(lender).lendOrder({ value: fee });
+
+        await expect(loan.connect(borrower).cancelOrder())
+        .to.be.revertedWith("If the order is fulfilled you can't cancel the Loan");
+      });
+
+      it("Should fail Cancel Loan if is not the borrower try to cancel", async function () {
+        await expect(loan.connect(hacker).cancelOrder())
+        .to.be.revertedWith("You cannot Cancel the Loan");
+      })
     })
   });
 });
