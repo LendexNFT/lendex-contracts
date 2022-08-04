@@ -16,6 +16,7 @@ contract FactoryLoans is Ownable {
         IERC1155 _interestAsset,
         IERC1155 _requestAsset,
         uint256 _requestAssetId,
+        uint256 _amountAssetRequested,
         uint256 _timeToPay
     ) external returns(address) {
         Loanft newLoan = new Loanft(
@@ -24,6 +25,7 @@ contract FactoryLoans is Ownable {
             _requestAsset,
             _interestAsset,
             _requestAssetId,
+            _amountAssetRequested,
             _timeToPay,
             fee,
             COMMISSION_WALLET
