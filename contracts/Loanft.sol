@@ -60,6 +60,8 @@ contract Loanft is ERC1155Holder {
     IERC1155 public assetToRequest;
     IERC1155 public assetAsInterest;
     uint256 public assetToRequestId;
+    uint256 public amountAssetRequested;
+    uint256 public interestAmount;
     uint256 public timeToPay;
     uint256 public currentTimeFillOrder;
     uint256 public LOAN_FEE;
@@ -101,19 +103,20 @@ contract Loanft is ERC1155Holder {
         IERC1155 _assetToRequest,
         IERC1155 _assetAsInterest,
         uint256 _assetToRequestId,
+        uint256 _amountAssetRequested,
         uint256 _timeToPay,
         uint256 _loan_fee,
         address _commission_Wallet
     ) {
-        // require(_collateralAssetAddress != address(0), "Collaterall address can't be null");
-        // require(_assetToRequest != address(0), "Asset address can't be null");
-        // require(_assetAsInterest != address(0), "Interest address can't be null");
         require(_timeToPay > 0, "time can't be zero");
         require(_loan_fee > 0, "loan fee can't be zero");
+        require(_amountAssetRequested > 0, "Amount can't be zero");
+
         collateralAssetAddress = _collateralAssetAddress;
         assetToRequest = _assetToRequest;
         assetAsInterest = _assetAsInterest;
         assetToRequestId = _assetToRequestId;
+        amountAssetRequested = _amountAssetRequested;
         timeToPay = _timeToPay * 1 days;
         LOAN_FEE = _loan_fee;
         COMMISSION_WALLET = _commission_Wallet;
@@ -121,19 +124,21 @@ contract Loanft is ERC1155Holder {
     }
 
     // wee need to execute setApprovalForAll
-    function borrowOrder(uint256 collateralId, uint256 interestId)
+    function borrowOrder(uint256 collateralId, uint256 interestId, uint256 _interestAmount)
         public
         payable
     {
+        require(_interestAmount > 0, "The number of assets as interest cannot be zero");
         require(
             IERC721(collateralAssetAddress).ownerOf(collateralId) == msg.sender,
             "Token must be staked by borrower!"
         );
         require(
-            IERC1155(assetAsInterest).balanceOf(msg.sender, interestId) >= 1,
+            IERC1155(assetAsInterest).balanceOf(msg.sender, interestId) >= _interestAmount,
             "You need to have at least one!"
         );
         require(msg.value >= LOAN_FEE, "You have to pay the Loan fee");
+        interestAmount = _interestAmount;
 
         payable(COMMISSION_WALLET).transfer(msg.value);
         orderStatus = OrderStatus.Requested;
@@ -148,7 +153,7 @@ contract Loanft is ERC1155Holder {
             msg.sender,
             address(this),
             interestId,
-            1,
+            interestAmount,
             "0x0"
         );
         stakerToInterestId[msg.sender] = interestId;
@@ -159,8 +164,8 @@ contract Loanft is ERC1155Holder {
     function lendOrder() public payable {
         require(
             IERC1155(assetToRequest).balanceOf(msg.sender, assetToRequestId) >=
-                1,
-            "You need to have at least one!"
+                amountAssetRequested,
+            "You need to have the required amount!"
         );
         require(msg.value >= LOAN_FEE, "You have to pay the Loan fee");
         require(
@@ -176,7 +181,7 @@ contract Loanft is ERC1155Holder {
             msg.sender,
             borrowerAddress,
             assetToRequestId,
-            1,
+            amountAssetRequested,
             "0x0"
         );
         emit LendingOrderEvent(msg.sender, assetToRequestId, assetToRequest);
@@ -186,8 +191,8 @@ contract Loanft is ERC1155Holder {
         require(msg.sender == borrowerAddress, "You cannot complete the order");
         require(
             IERC1155(assetToRequest).balanceOf(msg.sender, assetToRequestId) >=
-                1,
-            "You need to have at least one!"
+                amountAssetRequested,
+            "You need to have the required amount!"
         );
 
         if (block.timestamp <= currentTimeFillOrder) {
@@ -213,7 +218,7 @@ contract Loanft is ERC1155Holder {
             IERC1155(assetAsInterest).balanceOf(
                 address(this),
                 tokenInterestId
-            ) >= 1,
+            ) >= interestAmount,
             "You need to have at least one on staked!"
         );
         require(
@@ -225,7 +230,7 @@ contract Loanft is ERC1155Holder {
             address(this),
             borrowerAddress,
             tokenInterestId,
-            1,
+            interestAmount,
             "0x0"
         );
         IERC721(collateralAssetAddress).safeTransferFrom(
@@ -249,7 +254,7 @@ contract Loanft is ERC1155Holder {
             address(this),
             lenderAddress,
             tokenInterestId,
-            1,
+            interestAmount,
             "0x0"
         );
         // return the asset that lender lend
@@ -257,7 +262,7 @@ contract Loanft is ERC1155Holder {
             address(this),
             lenderAddress,
             assetToRequestId,
-            1,
+            amountAssetRequested,
             "0x0"
         );
         // return the collateral of the borrower
@@ -278,7 +283,7 @@ contract Loanft is ERC1155Holder {
             address(this),
             borrowerAddress,
             tokenInterestId,
-            1,
+            interestAmount,
             "0x0"
         );
         // send the collateral to the lender
@@ -299,7 +304,7 @@ contract Loanft is ERC1155Holder {
             msg.sender,
             address(this),
             assetToRequestId,
-            1,
+            amountAssetRequested,
             "0x0"
         );
     }

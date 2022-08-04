@@ -91,12 +91,14 @@ describe("Factory Contract", function () {
       // IERC1155 _interestAsset,
       // IERC1155 _requestAsset,
       // uint256 _requestAssetId,
+      // uint256 _amountAssetRequested,
       // uint256 _timeToPay
       const receipt =  await factory.connect(borrower).createLoan(
         collateral.address,
         interest.address,
         requested.address,
         0,
+        1,
         2
       )
       expect(receipt).to.have.a.property('hash');

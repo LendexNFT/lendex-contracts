@@ -40,6 +40,7 @@ describe("Loan Contract", function () {
       requested.address,
       interest.address,
       1,
+      1,
       2,
       fee,
       owner.address
@@ -61,6 +62,7 @@ describe("Loan Contract", function () {
         requested.address,
         interest.address,
         1,
+        1,
         0,
         fee,
         owner.address
@@ -78,11 +80,30 @@ describe("Loan Contract", function () {
         requested.address,
         interest.address,
         1,
+        1,
         2,
         0,
         owner.address
       )
     ).to.be.revertedWith("loan fee can't be zero");
+  });
+
+  it("Should deploy fail if _amountAssetRequested is zero", async function () {
+    const Loan = await ethers.getContractFactory("Loanft");
+
+    await expect(
+      Loan.connect(borrower).deploy(
+        borrower.address,
+        collateral.address,
+        requested.address,
+        interest.address,
+        1,
+        0,
+        2,
+        fee,
+        owner.address
+      )
+    ).to.be.revertedWith("Amount can't be zero");
   });
 
   describe("Loan Contract functions", function () {
@@ -93,6 +114,7 @@ describe("Loan Contract", function () {
         collateral.address,
         requested.address,
         interest.address,
+        1,
         1,
         2,
         fee,
@@ -109,24 +131,29 @@ describe("Loan Contract", function () {
     describe('BorrowOrder', () => {
 
       it("Should create new borrow order successfully", async function () {
-        await expect(loan.connect(borrower).borrowOrder(1, 2, { value: fee }))
+        await expect(loan.connect(borrower).borrowOrder(1, 2, 2, { value: fee }))
         .to.emit(loan, "BorrowOrderEvent").withArgs(await loan.borrowerAddress(), 1, 2);
       });
 
+      it("Should Reverted if the interest amount is zero", async function () {
+        await expect(loan.connect(hacker).borrowOrder(1, 2, 0, { value: fee}))
+        .to.be.revertedWith("The number of assets as interest cannot be zero");
+      });
+
       it("Should Reverted if is not the borrowerAdmin try to deposit a collateral", async function () {
-        await expect(loan.connect(hacker).borrowOrder(1, 2, { value: fee}))
+        await expect(loan.connect(hacker).borrowOrder(1, 2, 2, { value: fee}))
         .to.be.revertedWith("Token must be staked by borrower!");
       });
 
       it("Should Reverted if the borrower has not interest asset balance", async function () {
         await interest.connect(borrower).safeTransferFrom(borrower.address, hacker.address, 2, 2, 0x0)
         
-        await expect(loan.connect(borrower).borrowOrder(1, 2, { value: fee}))
+        await expect(loan.connect(borrower).borrowOrder(1, 2, 2, { value: fee}))
         .to.be.revertedWith("You need to have at least one!");
       });
 
       it("Should Reverted if the borrower not pay the fee", async function () {
-        await expect(loan.connect(borrower).borrowOrder(1, 2, { value: 0 }))
+        await expect(loan.connect(borrower).borrowOrder(1, 2, 2, { value: 0 }))
         .to.be.revertedWith("You have to pay the Loan fee");
       });
 
@@ -135,14 +162,14 @@ describe("Loan Contract", function () {
         const currentBalance = async () => await ethers.provider.getBalance(commission_wallet);
         const currentBalanceFormatted = ethers.utils.formatUnits(await currentBalance());
         
-        await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
+        await loan.connect(borrower).borrowOrder(1, 2, 2, { value: fee })
 
         const expectedBalance = ethers.utils.formatUnits(await currentBalance());
         expect(Number(expectedBalance)).greaterThan(Number(currentBalanceFormatted));
       });
 
       it("Should get the collateral asset deposited on contract", async function () {
-        await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
+        await loan.connect(borrower).borrowOrder(1, 2, 2, { value: fee })
         
         const collateralContractBalance = await collateral.balanceOf(loan.address);
         const ownerOfCollateral = await collateral.ownerOf(1);
@@ -152,7 +179,7 @@ describe("Loan Contract", function () {
       });
 
       it("Should get the interest asset deposited on contract", async function () {
-        await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
+        await loan.connect(borrower).borrowOrder(1, 2, 2, { value: fee })
         const interestContractBalance = await interest.balanceOf(loan.address, 2);
         
         expect(Number(interestContractBalance)).greaterThanOrEqual(1);
@@ -170,7 +197,7 @@ describe("Loan Contract", function () {
         await requested.connect(lender).safeTransferFrom(lender.address, hacker.address, 1, 3, 0x0)
     
         await expect(loan.connect(lender).lendOrder({ value: fee}))
-        .to.be.revertedWith("You need to have at least one!");
+        .to.be.revertedWith("You need to have the required amount!");
       });
 
       it("Should Reverted if the lender not pay the fee", async function () {
@@ -216,7 +243,7 @@ describe("Loan Contract", function () {
 
     describe("OrderComplete", () => {
       beforeEach(async () => {
-        await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
+        await loan.connect(borrower).borrowOrder(1, 2, 2, { value: fee })
         await loan.connect(lender).lendOrder({ value: fee })
         requested.connect(borrower).setApproval(loan.address);
       });
@@ -235,7 +262,7 @@ describe("Loan Contract", function () {
         await requested.connect(borrower).safeTransferFrom(borrower.address, hacker.address, 1, 1, 0x0)
     
         await expect(loan.connect(borrower).orderComplete())
-        .to.be.revertedWith("You need to have at least one!");
+        .to.be.revertedWith("You need to have the required amount!");
       });
 
       it("Should call pay in time if the current time is not greater than time to pay", async function () {
@@ -256,7 +283,7 @@ describe("Loan Contract", function () {
 
     describe('Cancel Loan', () => {
       beforeEach(async () => {
-        await loan.connect(borrower).borrowOrder(1, 2, { value: fee })
+        await loan.connect(borrower).borrowOrder(1, 2, 2, { value: fee })
       });
 
       it("Should Cancel Loan Correctly", async function () {
