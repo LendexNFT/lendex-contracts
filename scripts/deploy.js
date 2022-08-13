@@ -3,9 +3,15 @@
 //
 // When running the script with `npx hardhat run <script>` you'll find the Hardhat
 // Runtime Environment's members available in the global scope.
-const hre = require("hardhat");
+// const hre = require("hardhat");
 
 async function main() {
+  const [deployer] = await ethers.getSigners();
+
+  console.log("Deploying contracts with the account:", deployer.address);
+
+  console.log("Account balance:", (await deployer.getBalance()).toString());
+
   // Hardhat always runs the compile task when running scripts with its command
   // line interface.
   //
@@ -13,24 +19,24 @@ async function main() {
   // manually to make sure everything is compiled
   // await hre.run('compile');
 
-  const Asset721 = await hre.ethers.getContractFactory("721Asset");
-  const asset721 = await Asset721.deploy();
-  const _collateralAssetAddress = asset721.address;
+  // const Asset721 = await hre.ethers.getContractFactory("721Asset");
+  // const asset721 = await Asset721.deploy();
+  // const _collateralAssetAddress = asset721.address;
 
-  const Asset1155 = await hre.ethers.getContractFactory("1155Asset");
-  const asset1155 = await Asset1155.deploy();
-  const _assetToRequest = asset1155.address;
-  const _assetAsInterest = asset1155.address;
+  // const Asset1155 = await hre.ethers.getContractFactory("1155Asset");
+  // const asset1155 = await Asset1155.deploy();
+  // const _assetToRequest = asset1155.address;
+  // const _assetAsInterest = asset1155.address;
 
-  const _timeToPay = 1;
+  // const _timeToPay = 1;
   // We get the contract to deploy
-  const Loanft = await hre.ethers.getContractFactory("Loanft");
+  const Factory = await ethers.getContractFactory("FactoryLoans");
   // address _collateralAssetAddress, address _assetToRequest, address _assetAsInterest, uint256 _assetToRequestId, uint256 _timeToPay
-  const loanft = await Loanft.deploy(_collateralAssetAddress, _assetToRequest, _assetAsInterest, 2, _timeToPay);
+  const factory = await Factory.deploy();
 
-  await loanft.deployed();
+  await factory.deployed();
 
-  console.log("Loanft deployed to:", loanft.address);
+  console.log("Factory Loanft deployed to:", factory.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
